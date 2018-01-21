@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// Entry represent a log entry as pushed to OVH logs PAAS
+// Entry represent a log entry to push to OVH logs PAAS
 type Entry struct {
 	Version      string  `json:"version"`
 	Host         string  `json:"host"`

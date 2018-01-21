@@ -1,6 +1,7 @@
 package ovhlogs
 
 import (
+	"fmt"
 	"os"
 	"time"
 )
@@ -18,12 +19,6 @@ const (
 	GelfTCP
 	// GelfTLS for Gelf + TLS
 	GelfTLS
-	// CapnProtoUDP for Cap'n proto + UDP
-	CapnProtoUDP
-	// CapnProtoTCP for Cap'n proto + TCP
-	CapnProtoTCP
-	// CapnProtoTLS for Cap'n proto + TLS
-	CapnProtoTLS
 )
 
 // reverse map
@@ -70,6 +65,7 @@ func (c CompressAlgo) String() string {
 
 }
 
+// Constants usefull for UDP
 const (
 	// UDPChunkMaxSizeFrag max chunk size (fragmented)
 	UDPChunkMaxSizeFrag = 8192
@@ -103,7 +99,7 @@ func New(ovhToken string, proto Protocol, compression CompressAlgo, isAsync bool
 
 }
 
-// Send data to ovh logs
+// Send a Entry to ovh logs
 func (o *OvhLogs) Send(e Entry) (err error) {
 	// validate entry / set default value
 
@@ -140,4 +136,96 @@ func (o *OvhLogs) Send(e Entry) (err error) {
 		return nil
 	}
 	return e.send(o.proto, o.compression)
+}
+
+// implementation of std lib log interface
+// Warning thoses methods could return an error
+
+// Printf for log.Printf interface
+func (o *OvhLogs) Printf(format string, v ...interface{}) error {
+	return o.Send(Entry{
+		FullMessage: fmt.Sprintf(format, v...),
+	})
+}
+
+// Print for log.Print interface
+func (o *OvhLogs) Print(v ...interface{}) error {
+	return o.Send(Entry{
+		FullMessage: fmt.Sprint(v...),
+	})
+}
+
+// Println for log.Println interface
+func (o *OvhLogs) Println(v ...interface{}) error {
+	return o.Print(v)
+}
+
+// Fatal for log.Fatal interface
+// Warning: error are dropped
+func (o *OvhLogs) Fatal(v ...interface{}) {
+	o.Send(Entry{
+		FullMessage: fmt.Sprint(v...),
+	})
+	os.Exit(1)
+}
+
+// Fatalln for log.Fatalln interface
+// Warning: error are dropped
+func (o *OvhLogs) Fatalln(v ...interface{}) {
+	o.Fatal(v)
+}
+
+// Fatalf for log.Fatalf interface
+// Warning: error are dropped
+func (o *OvhLogs) Fatalf(format string, v ...interface{}) {
+	o.Send(Entry{
+		FullMessage: fmt.Sprintf(format, v...),
+	})
+	os.Exit(1)
+}
+
+// Panic for log.Panic
+func (o *OvhLogs) Panic(v ...interface{}) {
+	s := fmt.Sprint(v...)
+	o.Send(Entry{
+		FullMessage: s,
+	})
+	panic(s)
+}
+
+// Panicln for log.Panicln
+func (o *OvhLogs) Panicln(v ...interface{}) {
+	o.Panic(v)
+}
+
+// Panicf for log.Panicf
+func (o *OvhLogs) Panicf(format string, v ...interface{}) {
+	s := fmt.Sprintf(format, v...)
+	o.Send(Entry{
+		FullMessage: s,
+	})
+	panic(s)
+}
+
+// helpers
+
+// Levels used are syslog levels
+// 6 -> Info
+// 3 -> Error
+
+// Info send log message @info level
+func (o *OvhLogs) Info(v ...interface{}) error {
+	o.Send(Entry{
+		Level:       6,
+		FullMessage: fmt.Sprint(v),
+	})
+	return nil
+}
+
+func (o *OvhLogs) Error(v ...interface{}) error {
+	o.Send(Entry{
+		Level:       3,
+		FullMessage: fmt.Sprint(v),
+	})
+	return nil
 }
