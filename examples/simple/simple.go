@@ -1,8 +1,6 @@
 package main
 
 import (
-	"log"
-
 	ovhlogs "github.com/toorop/go-ovh-logs"
 )
 
@@ -14,7 +12,5 @@ func main() {
 		FullMessage: "helo world",
 		Level:       6,
 	}
-
-	log.Println(logs.Send(entry))
-
+	logs.Send(entry)
 }
