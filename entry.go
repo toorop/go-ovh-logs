@@ -5,13 +5,11 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"crypto/rand"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"net"
-	"time"
 )
 
 // Entry represent a log entry to push to OVH logs PAAS
@@ -26,18 +24,9 @@ type Entry struct {
 	OvhToken     string  `json:"_X-OVH-TOKEN"`
 }
 
-func (e Entry) send(proto Protocol, compression CompressAlgo) (err error) {
+func (e Entry) send(conn net.Conn, proto Protocol, compression CompressAlgo) (err error) {
 	var data []byte
-	switch proto {
-	case GelfTCP, GelfUDP, GelfTLS:
-		if data, err = e.gelf(compression); err != nil {
-			return
-		}
-	default:
-		return fmt.Errorf("%v not implemented or not supported", proto)
-	}
-	conn, err := getConn(proto)
-	if err != nil {
+	if data, err = e.gelf(compression); err != nil {
 		return err
 	}
 	defer conn.Close()
@@ -115,7 +104,7 @@ func (e Entry) send(proto Protocol, compression CompressAlgo) (err error) {
 func (e Entry) gelf(compression CompressAlgo) (out []byte, err error) {
 	out, err = json.Marshal(e)
 	if err != nil {
-		return []byte{}, fmt.Errorf("Failed to marshal gelfEntry to JSON, %v", err)
+		return []byte{}, fmt.Errorf("ailed to marshal gelfEntry to JSON, %v", err)
 	}
 	// Compress ?
 	if compression != CompressNone {
@@ -136,25 +125,4 @@ func (e Entry) gelf(compression CompressAlgo) (out []byte, err error) {
 	}
 
 	return out, nil
-}
-
-// return a conn
-func getConn(proto Protocol) (conn net.Conn, err error) {
-	//var addr net.Addr
-	switch proto {
-	case GelfTCP:
-		conn, err = net.DialTimeout("tcp", Endpoint+":2202", 5*time.Second)
-	case GelfTLS:
-		conf := &tls.Config{}
-		conn, err = tls.Dial("tcp", Endpoint+":12202", conf)
-		if err != nil {
-			return nil, err
-		}
-		err = conn.SetDeadline(time.Now().Add(10 * time.Second))
-	case GelfUDP:
-		conn, err = net.DialTimeout("udp", Endpoint+":2202", 5*time.Second)
-	default:
-		err = fmt.Errorf("%v not implemented or not supported", proto)
-	}
-	return
 }

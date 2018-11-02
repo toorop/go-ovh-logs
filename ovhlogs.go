@@ -1,7 +1,9 @@
 package ovhlogs
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net"
 	"os"
 	"time"
 )
@@ -82,21 +84,23 @@ var (
 
 // OvhLogs represents a OVH logs PAAS wrapper
 type OvhLogs struct {
+	endpoint    string
 	async       bool
 	token       string
 	proto       Protocol
 	compression CompressAlgo
+	conn        *net.Conn
 }
 
 // New return a new OvhLogs
-func New(ovhToken string, proto Protocol, compression CompressAlgo, isAsync bool) *OvhLogs {
+func New(endpoint, ovhToken string, proto Protocol, compression CompressAlgo, isAsync bool) *OvhLogs {
 	return &OvhLogs{
+		endpoint:    endpoint,
 		async:       isAsync,
 		token:       ovhToken,
 		proto:       proto,
 		compression: compression,
 	}
-
 }
 
 // Send a Entry to ovh logs
@@ -131,11 +135,37 @@ func (o *OvhLogs) Send(e Entry) (err error) {
 		}
 	}
 
+	// get conn
+	conn, err := o.getConn()
+	if err != nil {
+		return
+	}
+
 	if o.async {
-		go e.send(o.proto, o.compression)
+		go e.send(conn, o.proto, o.compression)
 		return nil
 	}
-	return e.send(o.proto, o.compression)
+	return e.send(conn, o.proto, o.compression)
+}
+
+// Get connection
+func (o *OvhLogs) getConn() (conn net.Conn, err error) {
+	switch o.proto {
+	case GelfTCP:
+		conn, err = net.DialTimeout("tcp", o.endpoint+":2202", 5*time.Second)
+	case GelfTLS:
+		conf := &tls.Config{}
+		conn, err = tls.Dial("tcp", o.endpoint+":12202", conf)
+		if err != nil {
+			return nil, err
+		}
+		err = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	case GelfUDP:
+		conn, err = net.DialTimeout("udp", o.endpoint+":2202", 5*time.Second)
+	default:
+		err = fmt.Errorf("%v not implemented or not supported", o.proto)
+	}
+	return
 }
 
 // implementation of std lib log interface
